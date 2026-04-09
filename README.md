@@ -149,6 +149,33 @@ docker compose down
 docker compose down -v
 ~~~
 
+## Troubleshooting
+
+### Kafka panels in Grafana show no data (Kafka Brokers, Topic Partitions, Event Count)
+
+**Symptom:** The Kafka-related Grafana panels are empty even though the producer is publishing events.
+
+**Cause:** `kafka-exporter` started before Kafka's broker port was ready, hit a connection refused error, and exited. Prometheus then had no Kafka metrics to scrape.
+
+**Fix (already applied in `docker-compose.yml`):**
+- A healthcheck was added to the `kafka` service so that dependent services wait for the broker to be ready.
+- `kafka-exporter` now uses `depends_on: kafka: condition: service_healthy` and `restart: unless-stopped`.
+
+**If you see this on a fresh run**, force-recreate the exporter:
+
+~~~bash
+docker compose up -d --force-recreate kafka-exporter
+~~~
+
+Then verify Kafka metrics are present in Prometheus:
+
+~~~bash
+curl -sG 'http://localhost:9090/api/v1/query' \
+  --data-urlencode 'query=kafka_brokers' | jq '.data.result'
+~~~
+
+A result with `"value": [..., "1"]` confirms the exporter is scraping correctly. Grafana panels will populate within one scrape interval (10 seconds).
+
 ## Notes
 
 - The producer sends one event per second to the Kafka topic platform-events.

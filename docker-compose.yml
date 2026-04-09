@@ -24,6 +24,12 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
@@ -109,7 +115,9 @@ services:
     image: danielqsj/kafka-exporter:v1.7.0
     container_name: kafka-exporter
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
     command:
       - --kafka.server=kafka:9092
     ports:
