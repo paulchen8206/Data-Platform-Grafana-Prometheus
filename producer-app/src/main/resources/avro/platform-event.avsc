@@ -1,0 +1,26 @@
+{
+  "type": "record",
+  "name": "PlatformEvent",
+  "namespace": "com.example.platform",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "event_ts",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "value",
+      "type": "int"
+    }
+  ]
+}

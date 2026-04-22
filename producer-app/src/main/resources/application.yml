@@ -1,0 +1,6 @@
+app:
+  producer:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    topic: ${KAFKA_TOPIC:platform-events}
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
+    publish-interval-ms: ${PRODUCER_PUBLISH_INTERVAL_MS:1000}

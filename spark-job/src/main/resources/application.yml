@@ -1,0 +1,8 @@
+app:
+  spark-job:
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
+    schema-subject: ${KAFKA_VALUE_SUBJECT:platform-events-value}
+    kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    kafka-topic: ${KAFKA_TOPIC:platform-events}
+    kafka-consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:platform-events-spark-job}
+    checkpoint-location: ${SPARK_CHECKPOINT_LOCATION:/opt/app/checkpoints/platform-events-iceberg-avro}

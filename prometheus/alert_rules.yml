@@ -33,3 +33,21 @@ groups:
     annotations:
       summary: High total container memory usage
       description: Total container memory usage has been above 6 GB for more than 2 minutes.
+  - alert: KafkaTopicNoEvents2m
+    expr: sum(increase(kafka_topic_partition_current_offset{topic="platform-events"}[2m])) <= 0
+    labels:
+      severity: warning
+      topic: platform-events
+    annotations:
+      summary: No Kafka events on platform-events for 2 minutes
+      description: Topic platform-events has no offset increase in the last 2 minutes, indicating no events were produced.
+  - alert: KafkaConsumerLagHigh
+    expr: max(kafka_consumergroup_lag{topic="platform-events",consumergroup="platform-events-spark-job"}) > 100
+    for: 2m
+    labels:
+      severity: warning
+      topic: platform-events
+      consumergroup: platform-events-spark-job
+    annotations:
+      summary: Kafka consumer lag is above 100 for platform-events-spark-job
+      description: Consumer group platform-events-spark-job on topic platform-events has lag {{ $value }} (threshold 100).

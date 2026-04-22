@@ -19,10 +19,26 @@
 
 # Java / Maven build outputs
 **/target/
+**/build/
+**/out/
 **/.mvn/
 
 # Maven wrapper cache (if added later)
 .mvn/wrapper/maven-wrapper.jar
+
+# Build caches
+.m2/
+.gradle/
+.cache/
+**/.cache/
+
+# Frontend/package manager caches (if added later)
+node_modules/
+.npm/
+.pnpm-store/
+
+# Runtime checkpoints/state
+spark-job/checkpoints/
 
 # Docker/runtime local data
 prometheus_data/
