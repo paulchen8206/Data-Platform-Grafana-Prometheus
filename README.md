@@ -57,6 +57,86 @@ flowchart LR
   Prometheus -->|query| Grafana
 ~~~
 
+## Grafana-Loki-Promtail End-to-End Diagram
+
+~~~mermaid
+flowchart LR
+  subgraph Workloads[Application and Platform Containers]
+    ProducerC[producer-app]
+    SparkC[spark-job]
+    KafkaC[kafka]
+    OtherC[other docker services]
+  end
+
+  subgraph Collection[Log Collection]
+    DockerLogs[/Docker JSON logs/]
+    Promtail[promtail]
+  end
+
+  subgraph Storage[Log Storage and Rules]
+    Loki[(loki)]
+    LokiRules[Loki ruler]
+  end
+
+  subgraph Visualization[Visualization and Alerting]
+    Grafana[(grafana)]
+    Alertmanager[(alertmanager)]
+  end
+
+  ProducerC --> DockerLogs
+  SparkC --> DockerLogs
+  KafkaC --> DockerLogs
+  OtherC --> DockerLogs
+
+  DockerLogs -->|scrape + relabel + labels| Promtail
+  Promtail -->|push log streams| Loki
+
+  Grafana -->|Loki datasource query| Loki
+  Grafana -->|Explore / Dashboards / Log panels| Users[Operators]
+
+  LokiRules -->|evaluate log rules| Loki
+  LokiRules -->|fire alerts| Alertmanager
+~~~
+
+### Runbook Sequence Diagram (Event-by-Event)
+
+~~~mermaid
+sequenceDiagram
+  autonumber
+  participant App as Producer/Spark Container
+  participant Docker as Docker Log Driver
+  participant Promtail as Promtail
+  participant Loki as Loki
+  participant Grafana as Grafana
+  participant Operator as On-call Operator
+  participant Ruler as Loki Ruler
+  participant AM as Alertmanager
+
+  App->>Docker: Write stdout/stderr log line
+  Docker-->>Promtail: Expose container JSON log file
+  Promtail->>Promtail: Apply scrape config and relabels
+  Promtail->>Loki: Push labeled log stream
+  Loki-->>Promtail: 204 accepted
+
+  Operator->>Grafana: Open Explore with service/level filters
+  Grafana->>Loki: Query logs (LogQL)
+  Loki-->>Grafana: Return matching log lines
+  Grafana-->>Operator: Show timeline + context
+
+  Ruler->>Loki: Evaluate LogQL alert rule window
+  Loki-->>Ruler: Return query result
+
+  alt Rule condition met
+    Ruler->>AM: Send firing alert payload
+    AM-->>Operator: Dispatch notification (Slack/Email)
+    Operator->>Grafana: Pivot from alert to logs
+    Grafana->>Loki: Query around alert timestamp
+    Loki-->>Grafana: Return correlated log evidence
+  else Rule condition not met
+    Ruler->>Ruler: Keep monitoring next interval
+  end
+~~~
+
 ## Project Structure
 
 ~~~text
