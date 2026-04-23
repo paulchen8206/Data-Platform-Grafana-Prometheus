@@ -224,7 +224,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(1 - up{job=\"kafka_exporter\"})",
+          "expr": "sum(1 - up{job=~\".*kafka-exporter.*\"})",
           "legendFormat": "down",
           "range": true,
           "refId": "A"
@@ -478,7 +478,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(scrape_duration_seconds{job=\"alloy\",instance=\"alloy:12345\"})",
+          "expr": "max(scrape_duration_seconds{job=\"alloy\"})",
           "legendFormat": "alloy",
           "range": true,
           "refId": "A"
@@ -692,8 +692,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{cpu=\"total\",container_label_com_docker_compose_service=~\"spark-job|spark-master|spark-worker\"}[5m]))",
-          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"}[5m]))",
+          "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
         }
@@ -776,8 +776,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (container_label_com_docker_compose_service) (container_memory_usage_bytes{container_label_com_docker_compose_service=~\"spark-job|spark-master|spark-worker\"})",
-          "legendFormat": "{{container_label_com_docker_compose_service}}",
+          "expr": "sum by (pod) (container_memory_usage_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
         }
@@ -841,7 +841,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(container_memory_usage_bytes{container_label_com_docker_compose_service=~\"spark-job|spark-master|spark-worker\"})",
+          "expr": "sum(container_memory_usage_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"})",
           "legendFormat": "spark-total",
           "range": true,
           "refId": "A"

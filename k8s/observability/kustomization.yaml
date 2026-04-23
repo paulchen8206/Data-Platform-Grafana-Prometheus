@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: monitoring
 resources:
 - prometheus-rules.yaml
+- kafka-exporter-servicemonitor.yaml
 configMapGenerator:
 - name: data-platform-grafana-dashboards
   files:
