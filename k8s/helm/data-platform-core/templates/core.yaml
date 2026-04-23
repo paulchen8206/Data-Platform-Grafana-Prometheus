@@ -392,9 +392,13 @@ spec:
             - --conf
             - spark.blockManager.port=7079
             - --conf
+            - spark.driver.memory=512m
+            - --conf
             - spark.executor.memory=768m
             - --conf
             - spark.executor.memoryOverhead=256m
+            - --conf
+            - spark.sql.shuffle.partitions=4
             - --conf
             - spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
             - --conf
