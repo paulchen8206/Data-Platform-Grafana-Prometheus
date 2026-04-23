@@ -4,6 +4,7 @@ namespace: monitoring
 resources:
 - prometheus-rules.yaml
 - kafka-exporter-servicemonitor.yaml
+- alloy-servicemonitor.yaml
 configMapGenerator:
 - name: data-platform-grafana-dashboards
   files:

@@ -1,18 +1,16 @@
 apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
+kind: ServiceMonitor
 metadata:
-  name: kafka-exporter
+  name: alloy-kps
   namespace: monitoring
   labels:
     release: kube-prometheus-stack
 spec:
-  namespaceSelector:
-    matchNames:
-    - data-platform
   selector:
     matchLabels:
-      app: kafka-exporter
-  podMetricsEndpoints:
-  - targetPort: 9308
+      app.kubernetes.io/instance: alloy
+      app.kubernetes.io/name: alloy
+  endpoints:
+  - port: http-metrics
     interval: 30s
     path: /metrics

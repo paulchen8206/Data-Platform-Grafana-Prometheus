@@ -478,7 +478,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max(scrape_duration_seconds{job=\"alloy\"})",
+          "expr": "max(scrape_duration_seconds{job=~\".*alloy.*\"})",
           "legendFormat": "alloy",
           "range": true,
           "refId": "A"
@@ -692,7 +692,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\"}[5m]))",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
@@ -776,7 +776,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (pod) (container_memory_usage_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\"})",
           "legendFormat": "{{pod}}",
           "range": true,
           "refId": "A"
@@ -841,7 +841,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(container_memory_usage_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\",container!=\"\",container!=\"POD\"})",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"data-platform\",pod=~\"spark-job.*|spark-master.*|spark-worker.*\"})",
           "legendFormat": "spark-total",
           "range": true,
           "refId": "A"
