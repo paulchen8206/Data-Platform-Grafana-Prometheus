@@ -13,7 +13,7 @@ spec:
       releaseName: alloy
       valueFiles:
       - $values/k8s/values-alloy-k8s.yaml
-  - repoURL: https://github.com/LOCAL/REPLACE-ME.git
+  - repoURL: https://github.com/paulchen8206/Data-Platform-Grafana-Prometheus.git
     targetRevision: HEAD
     ref: values
   destination:
