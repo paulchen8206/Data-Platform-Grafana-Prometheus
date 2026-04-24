@@ -268,7 +268,6 @@ flowchart LR
 
 ## 10. Reference URLs
 
-- Observability with Prometheus and Grafana (article): <https://medium.com/@kaustubh.saha/observability-with-prometheus-and-grafana-506a203146c0>
 - Prometheus docs: <https://prometheus.io/docs/introduction/overview/>
 - Grafana docs: <https://grafana.com/docs/grafana/latest/>
 - Loki docs: <https://grafana.com/docs/loki/latest/>
