@@ -1,8 +1,15 @@
 # Architecture
 
-## 1. Design idea
+## How To Read This Document
 
-### Observability vs monitoring
+- Sections 1-3 explain design intent and observability component roles.
+- Sections 4-6 describe telemetry/data flow and SRE signal mapping.
+- Sections 7-10 describe ownership, GitOps behavior, and runtime topology.
+- Section 11 links to canonical external references.
+
+## 1. Design Idea
+
+### Observability Vs Monitoring
 
 **Monitoring** answers known questions: "Is this service up? Is disk below 90%?" It detects known unknowns.
 
@@ -14,7 +21,7 @@ This project is structured around observability, not just monitoring:
 - Keep deployment ownership explicit so routine execution is deterministic.
 - Keep observability declarative so dashboards, datasources, and alerts survive restarts and resets.
 
-### Three pillars
+### Three Pillars
 
 Observability is built on three signal types. This project covers two fully and leaves the third as a future extension:
 
@@ -24,7 +31,7 @@ Observability is built on three signal types. This project covers two fully and 
 | Logs | Alloy → Loki | Implemented |
 | Traces | OpenTelemetry → Tempo | Future extension |
 
-### Design principles
+### Design Principles
 
 1. **Telemetry-first operations**: metrics, logs, and alerts are first-class deliverables, not afterthoughts.
 2. **Pull model for metrics**: Prometheus scrapes targets on a schedule; services expose `/metrics`. This makes liveness detection implicit — a failed scrape is itself a signal.
@@ -33,7 +40,13 @@ Observability is built on three signal types. This project covers two fully and 
 5. **Alert on symptoms, not causes**: alert when users are impacted (error rates, latency SLOs), not when a CPU hits 80%. Pager fatigue undermines operations.
 6. **Docs-as-operations**: architecture, routines, and runbook stay synchronized.
 
-## 2. Prometheus ecosystem roles
+### Non-Goals
+
+- This project does not currently implement full distributed tracing in the runtime stack.
+- This project does not prescribe one mandatory production deployment topology.
+- This document does not replace the incident runbook for operational execution.
+
+## 2. Prometheus Ecosystem Roles
 
 Prometheus is not a single application; it is an ecosystem of four cooperating components:
 
@@ -91,7 +104,7 @@ flowchart LR
 
 > **Pushgateway note**: use it only for service-level batch jobs (e.g., a nightly Iceberg compaction run). Do not use it for general application monitoring.
 
-## 3. Grafana building blocks
+## 3. Grafana Building Blocks
 
 Grafana does not store data. It connects to data sources and renders results. Understanding the hierarchy prevents confusion:
 
@@ -118,7 +131,7 @@ flowchart TB
 | Query | PromQL or LogQL expression sent to the data source |
 | Variable | Dropdown placeholder that makes one dashboard work across many targets |
 
-## 4. System context
+## 4. System Context
 
 ```mermaid
 flowchart LR
@@ -152,7 +165,7 @@ flowchart LR
   L --> A
 ```
 
-## 5. Runtime telemetry flow (pull model)
+## 5. Runtime Telemetry Flow (Pull Model)
 
 ```mermaid
 sequenceDiagram
@@ -182,7 +195,7 @@ sequenceDiagram
   Loki->>AM: fire alert (log rule matched)
 ```
 
-## 6. Golden Signals applied to this platform
+## 6. Golden Signals Applied To This Platform
 
 Google SRE defines four golden signals that should be the starting point for any observability setup. This project maps them as follows:
 
@@ -195,7 +208,7 @@ Google SRE defines four golden signals that should be the starting point for any
 
 > **Cardinality warning**: do not add high-variance labels (user IDs, full URLs, session tokens) to Prometheus metrics. Each unique label combination creates a separate time series; cardinality explosion will exhaust Prometheus memory.
 
-## 7. Deployment ownership model
+## 7. Deployment Ownership Model
 
 ```mermaid
 flowchart TB
@@ -225,7 +238,7 @@ flowchart TB
   ArgoRoutine --- note1
 ```
 
-## 8. Argo CD GitOps routine flow
+## 8. Argo CD GitOps Routine Flow
 
 ```mermaid
 flowchart LR
@@ -269,7 +282,7 @@ flowchart LR
   MON -. drift detection + self-heal .-> AC
 ```
 
-## 9. Routine-to-deployment mapping
+## 9. Routine-To-Deployment Mapping
 
 | Routine target | Control plane | Expected deployment behavior |
 | --- | --- | --- |
@@ -279,7 +292,7 @@ flowchart LR
 | `routine-status-*` | Routine-specific | Reports health for the active routine |
 | `routine-down-*` | Routine-specific | Stops local stack or minikube profile |
 
-## 10. Kubernetes deployments by namespace
+## 10. Kubernetes Deployments By Namespace
 
 ```mermaid
 flowchart LR

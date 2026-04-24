@@ -4,9 +4,30 @@
 
 Day-2 operations, verification, and incident playbooks for all three routines.
 
-## Routine operations
+## Incident Triage Model
 
-### Docker routine
+Use this sequence before deep troubleshooting:
+
+1. Confirm active routine (`docker`, `helm`, or `argocd`).
+2. Confirm control plane health (Docker daemon or Kubernetes API).
+3. Confirm workload health (pods/services/applications).
+4. Confirm telemetry path (Prometheus/Loki reachable).
+5. Apply targeted playbook and re-verify.
+
+## First 10-Minute Checks
+
+```bash
+make routine-status-docker || true
+make routine-status-helm || true
+make routine-status-argocd || true
+kubectl get pods -n data-platform
+kubectl get pods -n monitoring
+kubectl get pods -n argocd
+```
+
+## Routine Operations
+
+### Docker Routine
 
 Start and verify:
 
@@ -21,7 +42,7 @@ Stop:
 make routine-down-docker
 ```
 
-### Kubernetes Helm routine
+### Kubernetes Helm Routine
 
 Start and verify:
 
@@ -36,7 +57,7 @@ Stop:
 make routine-down-helm
 ```
 
-### Kubernetes Argo CD routine
+### Kubernetes Argo CD Routine
 
 Start and verify:
 
@@ -51,7 +72,7 @@ Stop:
 make routine-down-argocd
 ```
 
-## Daily health checks
+## Daily Health Checks
 
 ```bash
 make health
@@ -69,16 +90,16 @@ kubectl get pods -n monitoring
 kubectl get pods -n argocd
 ```
 
-## Data validation checks
+## Data Validation Checks
 
 ```bash
 make verify-iceberg
 make verify-warehouse-k8s
 ```
 
-## Incident playbooks
+## Incident Playbooks
 
-### 1) Grafana login fails
+### 1) Grafana Login Fails
 
 1. Confirm Grafana pod is running:
 
@@ -101,7 +122,7 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 33000:80
 
 4. Retry in a private browser window to avoid stale cookie/session issues.
 
-### 2) Kafka UI shows no topic/schema
+### 2) Kafka UI Shows No Topic/Schema
 
 1. Verify topic exists:
 
@@ -131,7 +152,7 @@ kubectl -n data-platform exec deploy/schema-registry -- \
 kubectl -n data-platform port-forward svc/kafka-ui 18080:8080
 ```
 
-### 3) Argo CD UI not reachable
+### 3) Argo CD UI Not Reachable
 
 1. Confirm pods:
 
@@ -151,7 +172,7 @@ kubectl -n argocd port-forward svc/argocd-server 18081:443
 make k8s-argocd-password
 ```
 
-### 4) data-platform-core is Progressing (spark-extraction crash loop)
+### 4) data-platform-core Is Progressing (spark-extraction Crash Loop)
 
 Typical symptom: `data-platform-core` is `Synced` but stays `Progressing`, and `spark-extraction` keeps restarting.
 
@@ -194,7 +215,37 @@ kubectl -n argocd get application data-platform-core \
   -o jsonpath='Sync:{.status.sync.status}{"\n"}Health:{.status.health.status}{"\n"}Phase:{.status.operationState.phase}{"\n"}'
 ```
 
-## Recovery utilities
+### 5) Argo CD App Stuck In OutOfSync/Syncing
+
+Typical symptom: app remains non-converged even after repeated sync attempts.
+
+1. Inspect current app status and operation state:
+
+```bash
+kubectl -n argocd get application data-platform-monitoring -o yaml
+```
+
+2. Ensure desired state is committed in Git and pushed.
+
+3. Refresh/sync parent app (`data-platform-root`) and child app from Argo CD UI or CLI.
+
+4. If stale operation state persists, recreate only the affected child `Application` object from Git manifests.
+
+5. Re-verify both parent and child status are `Synced` + `Healthy`.
+
+### 6) Grafana Pod Healthy But Login Still Fails
+
+1. Confirm `grafana-admin` values are expected.
+2. Confirm no stale browser session (private window).
+3. Restart Grafana workload and re-check logs:
+
+```bash
+kubectl -n monitoring rollout restart deploy/kube-prometheus-stack-grafana
+kubectl -n monitoring rollout status deploy/kube-prometheus-stack-grafana --timeout=180s
+kubectl -n monitoring logs deploy/kube-prometheus-stack-grafana --tail=120
+```
+
+## Recovery Utilities
 
 ```bash
 make spark-rebuild
@@ -202,7 +253,17 @@ make reset-checkpoints
 make monitoring-recreate
 ```
 
-## Compatibility commands (legacy)
+## Closure Checklist
+
+After resolving an incident:
+
+1. Verify routine status command is green.
+2. Verify core user paths (Grafana, Kafka UI, data flow) are restored.
+3. Verify Argo CD applications are converged where applicable.
+4. Commit any configuration fix to Git (avoid live-only drift).
+5. Update this runbook when a new pattern is discovered.
+
+## Compatibility Commands (Legacy)
 
 ```bash
 make routine-up ROUTINE=docker
