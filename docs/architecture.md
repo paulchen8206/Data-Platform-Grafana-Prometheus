@@ -225,7 +225,51 @@ flowchart TB
   ArgoRoutine --- note1
 ```
 
-## 8. Routine-to-deployment mapping
+## 8. Argo CD GitOps routine flow
+
+```mermaid
+flowchart LR
+  Dev[Developer]
+  Git[GitHub repository]
+
+  subgraph ArgoCD[argocd namespace]
+    Root[data-platform-root\napp-of-apps]
+    Core[data-platform-core]
+    Mon[data-platform-monitoring]
+    Loki[data-platform-loki]
+    Alloy[data-platform-alloy]
+    RS[argocd-repo-server]
+    AC[argocd-application-controller]
+  end
+
+  subgraph Cluster[Kubernetes cluster]
+    DP[data-platform namespace resources]
+    MON[monitoring namespace resources]
+  end
+
+  Dev -->|git push| Git
+  Git -->|desired manifests| RS
+  RS --> Root
+  Root --> Core
+  Root --> Mon
+  Root --> Loki
+  Root --> Alloy
+
+  AC -->|sync/apply| Core
+  AC -->|sync/apply| Mon
+  AC -->|sync/apply| Loki
+  AC -->|sync/apply| Alloy
+
+  Core --> DP
+  Mon --> MON
+  Loki --> MON
+  Alloy --> MON
+
+  DP -. drift detection + self-heal .-> AC
+  MON -. drift detection + self-heal .-> AC
+```
+
+## 9. Routine-to-deployment mapping
 
 | Routine target | Control plane | Expected deployment behavior |
 | --- | --- | --- |
@@ -235,7 +279,7 @@ flowchart TB
 | `routine-status-*` | Routine-specific | Reports health for the active routine |
 | `routine-down-*` | Routine-specific | Stops local stack or minikube profile |
 
-## 9. Kubernetes deployments by namespace
+## 10. Kubernetes deployments by namespace
 
 ```mermaid
 flowchart LR
@@ -266,7 +310,7 @@ flowchart LR
   end
 ```
 
-## 10. Reference URLs
+## 11. Reference URLs
 
 - Prometheus docs: <https://prometheus.io/docs/introduction/overview/>
 - Grafana docs: <https://grafana.com/docs/grafana/latest/>
