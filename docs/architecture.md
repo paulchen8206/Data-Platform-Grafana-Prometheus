@@ -2,20 +2,123 @@
 
 ## 1. Design idea
 
-This project is built around one operational idea:
+### Observability vs monitoring
+
+**Monitoring** answers known questions: "Is this service up? Is disk below 90%?" It detects known unknowns.
+
+**Observability** goes further: given only the data a system produces, can you understand its internal state and debug problems you didn't anticipate — the unknown unknowns? It doesn't just tell you a pipeline is slow; it helps you trace which Spark stage, which Kafka partition, or which schema mismatch started the degradation and when.
+
+This project is structured around observability, not just monitoring:
 
 - Run a realistic data pipeline and observability stack using repeatable routines.
 - Keep deployment ownership explicit so routine execution is deterministic.
-- Keep observability declarative so dashboards/datasources/alerts survive restarts and resets.
+- Keep observability declarative so dashboards, datasources, and alerts survive restarts and resets.
+
+### Three pillars
+
+Observability is built on three signal types. This project covers two fully and leaves the third as a future extension:
+
+| Pillar | Tooling | Status |
+| --- | --- | --- |
+| Metrics | Prometheus + exporters | Implemented |
+| Logs | Alloy → Loki | Implemented |
+| Traces | OpenTelemetry → Tempo | Future extension |
 
 ### Design principles
 
-1. Telemetry-first operations: metrics, logs, and alerts are first-class deliverables.
-2. Deterministic routines: Docker, Helm, and Argo CD routines are explicit and testable.
-3. Clear ownership boundaries: each deployment path has a clearly defined owner.
-4. Docs-as-operations: architecture, routines, and runbook stay synchronized.
+1. **Telemetry-first operations**: metrics, logs, and alerts are first-class deliverables, not afterthoughts.
+2. **Pull model for metrics**: Prometheus scrapes targets on a schedule; services expose `/metrics`. This makes liveness detection implicit — a failed scrape is itself a signal.
+3. **Deterministic routines**: Docker, Helm, and Argo CD routines are explicit and testable.
+4. **Clear ownership boundaries**: each deployment path has a clearly defined owner; no resource is managed by two control planes simultaneously.
+5. **Alert on symptoms, not causes**: alert when users are impacted (error rates, latency SLOs), not when a CPU hits 80%. Pager fatigue undermines operations.
+6. **Docs-as-operations**: architecture, routines, and runbook stay synchronized.
 
-## 2. System context
+## 2. Prometheus ecosystem roles
+
+Prometheus is not a single application; it is an ecosystem of four cooperating components:
+
+```mermaid
+flowchart LR
+  subgraph Targets[Monitored targets]
+    App[source-ingestion :9404]
+    KEx[kafka-exporter :9308]
+    NEx[node-exporter :9100]
+    cAdv[cadvisor :8080]
+    SpEx[spark-extraction :4040]
+  end
+
+  subgraph PG[Pushgateway]
+    PGW[pushgateway :9091\nbatch job drop-box]
+  end
+
+  subgraph PS[Prometheus Server — The Brain]
+    Scrape[Scrape engine\npull /metrics every 15s]
+    TSDB[TSDB\ntime-series storage]
+    PromQL[PromQL API\nquery & rule evaluation]
+    Rules[Alerting rules\nrecording rules]
+    Scrape --> TSDB
+    TSDB --> PromQL
+    TSDB --> Rules
+  end
+
+  subgraph AM[Alertmanager — The Dispatcher]
+    Dedup[Deduplication]
+    Group[Grouping]
+    Route[Routing → Slack / PagerDuty]
+    Dedup --> Group --> Route
+  end
+
+  subgraph GF[Grafana — The Face]
+    DS[Data Sources]
+    Dash[Dashboards]
+    Panel[Panels + PromQL queries]
+    Var[Variables / templating]
+    DS --> Dash --> Panel --> Var
+  end
+
+  Targets -- pull scrape --> Scrape
+  PGW -- pull scrape --> Scrape
+  Rules -- fire alert --> AM
+  PromQL -- query --> GF
+```
+
+| Component | Nickname | Responsibility |
+| --- | --- | --- |
+| Prometheus Server | The Brain | Pull-scrapes targets, stores TSDB, evaluates PromQL rules |
+| Exporters | The Translators | Convert non-native metrics (Kafka, JVM, OS) into `/metrics` |
+| Alertmanager | The Dispatcher | Deduplicates, groups, and routes alert notifications |
+| Pushgateway | The Drop Box | Holds metrics from short-lived batch jobs until Prometheus scrapes |
+
+> **Pushgateway note**: use it only for service-level batch jobs (e.g., a nightly Iceberg compaction run). Do not use it for general application monitoring.
+
+## 3. Grafana building blocks
+
+Grafana does not store data. It connects to data sources and renders results. Understanding the hierarchy prevents confusion:
+
+```mermaid
+flowchart TB
+  DS[Data Source\nPrometheus URL + auth] --> Dash
+  subgraph Dash[Dashboard — the screen]
+    Row[Rows / sections]
+    subgraph Panel[Panel — atomic visualization]
+      Q[Query — PromQL / LogQL expression]
+      Viz[Visualization type\nTime Series · Stat · Gauge · Table · Heatmap]
+      Q --> Viz
+    end
+    Row --> Panel
+  end
+  Var[Variables / Templating\n$namespace · $job · $instance] -.-> Panel
+```
+
+| Building block | Role |
+| --- | --- |
+| Data Source | Configured connection (URL, credentials) to Prometheus or Loki |
+| Dashboard | Top-level container; exportable as JSON, importable across environments |
+| Panel | Single chart or table inside a dashboard |
+| Query | PromQL or LogQL expression sent to the data source |
+| Variable | Dropdown placeholder that makes one dashboard work across many targets |
+
+## 4. System context
 
 ```mermaid
 flowchart LR
@@ -28,6 +131,7 @@ flowchart LR
 
   subgraph ObsPlane[Observability Platform]
     E[Exporters + Alloy]
+    PGW[Pushgateway]
     PR[Prometheus]
     L[Loki]
     G[Grafana]
@@ -37,15 +141,18 @@ flowchart LR
   P --> K --> S --> M
   K --> E
   S --> E
-  E --> PR
-  E --> L
+  P -. batch metrics .-> PGW
+  S -. batch metrics .-> PGW
+  E -- /metrics --> PR
+  PGW -- /metrics --> PR
+  E -- log push --> L
   PR --> G
   L --> G
   PR --> A
   L --> A
 ```
 
-## 3. Runtime data and telemetry flow
+## 5. Runtime telemetry flow (pull model)
 
 ```mermaid
 sequenceDiagram
@@ -63,33 +170,47 @@ sequenceDiagram
   Spark->>Kafka: consume platform-events
   Spark->>MinIO: write Iceberg data files/metadata
 
-  Kafka->>Exporters: expose metrics/logs
-  Spark->>Exporters: expose metrics/logs
-  Exporters->>Prom: scrape targets
-  Exporters->>Loki: push logs
+  note over Exporters,Prom: Pull model — Prometheus scrapes every 15 s
+  Prom->>Exporters: GET /metrics (kafka-exporter, node-exporter, cadvisor)
+  Exporters-->>Prom: metric families (counter, gauge, histogram)
 
-  Prom->>Grafana: query metrics
-  Loki->>Grafana: query logs
-  Prom->>AM: fire metric alerts
-  Loki->>AM: fire log alerts
+  Exporters->>Loki: push log streams (Alloy)
+
+  Prom->>Grafana: PromQL query response
+  Loki->>Grafana: LogQL query response
+  Prom->>AM: fire alert (rule threshold breached)
+  Loki->>AM: fire alert (log rule matched)
 ```
 
-## 4. Deployment ownership model
+## 6. Golden Signals applied to this platform
+
+Google SRE defines four golden signals that should be the starting point for any observability setup. This project maps them as follows:
+
+| Golden Signal | Definition | Platform metric examples |
+| --- | --- | --- |
+| **Latency** | Time to serve a request | Kafka producer latency, Spark stage duration, schema-registry request duration |
+| **Traffic** | Demand on the system | `kafka_topic_partition_current_offset` rate, Spark records-per-second |
+| **Errors** | Rate of failed requests | Kafka consumer lag spikes, Spark task failure rate, schema-registry error responses |
+| **Saturation** | How full the system is | JVM heap usage, Kafka broker disk, MinIO storage utilization, CPU/memory from node-exporter |
+
+> **Cardinality warning**: do not add high-variance labels (user IDs, full URLs, session tokens) to Prometheus metrics. Each unique label combination creates a separate time series; cardinality explosion will exhaust Prometheus memory.
+
+## 7. Deployment ownership model
 
 ```mermaid
 flowchart TB
-  subgraph DockerRoutine[Docker routine owner: docker compose]
+  subgraph DockerRoutine[Docker routine — owner: docker compose]
     DC[docker-compose services]
   end
 
-  subgraph HelmRoutine[Kubernetes Helm routine owner: Helm]
+  subgraph HelmRoutine[Kubernetes Helm routine — owner: Helm]
     HCore[data-platform-core release]
     HMon[kube-prometheus-stack release]
     HLoki[loki release]
     HAlloy[alloy release]
   end
 
-  subgraph ArgoRoutine[Kubernetes Argo CD routine owner: Argo CD]
+  subgraph ArgoRoutine[Kubernetes Argo CD routine — owner: Argo CD]
     AApp[app-of-apps]
     ACore[core app]
     AMon[monitoring app]
@@ -97,14 +218,14 @@ flowchart TB
     AAlloy[alloy app]
   end
 
-  note1[Rule: avoid dual ownership for same resources]
+  note1[Rule: no resource is dual-owned between Helm and Argo CD]
 
   DockerRoutine --- note1
   HelmRoutine --- note1
   ArgoRoutine --- note1
 ```
 
-## 5. Routine-to-deployment mapping
+## 8. Routine-to-deployment mapping
 
 | Routine target | Control plane | Expected deployment behavior |
 | --- | --- | --- |
@@ -114,7 +235,7 @@ flowchart TB
 | `routine-status-*` | Routine-specific | Reports health for the active routine |
 | `routine-down-*` | Routine-specific | Stops local stack or minikube profile |
 
-## 6. Relevant Kubernetes deployments by namespace
+## 9. Kubernetes deployments by namespace
 
 ```mermaid
 flowchart LR
@@ -134,7 +255,7 @@ flowchart LR
     am[alertmanager]
     loki[loki]
     alloy[alloy]
-    exp[kafka-exporter/node-exporter/cadvisor]
+    exp[kafka-exporter / node-exporter / cadvisor]
   end
 
   subgraph ARGO[argocd namespace]
@@ -145,8 +266,9 @@ flowchart LR
   end
 ```
 
-## 7. Reference URLs
+## 10. Reference URLs
 
+- Observability with Prometheus and Grafana (article): <https://medium.com/@kaustubh.saha/observability-with-prometheus-and-grafana-506a203146c0>
 - Prometheus docs: <https://prometheus.io/docs/introduction/overview/>
 - Grafana docs: <https://grafana.com/docs/grafana/latest/>
 - Loki docs: <https://grafana.com/docs/loki/latest/>
